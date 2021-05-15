@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from multiprocessing import Pool
 
-enable_multithread = True
+enable_multithread = False
 
 generation_size = 100
 num_generations = 200
@@ -20,11 +20,10 @@ max_iter_simulation = 1000
 num_repeat = 5
 
 
-def run_individual(args):
+def run_individual(args, env, ind):
 
     individual, params = args
 
-    env = gym.make('BipedalWalker-v2')
     num_actions = env.action_space.shape[0]
     num_observations = env.observation_space.shape[0]
 
@@ -44,8 +43,8 @@ def run_individual(args):
         maxi = 0
         for i in range(params["simiter"]):
             maxi = i
-            # if i % 5 == 0:
-            #     env.render()
+            if i % 10 == 0 and ind < 10:
+                env.render()
             # time.sleep(0.05)
             actions = []
             for act_ind in range(num_actions):
@@ -76,15 +75,15 @@ def run_individual(args):
 
     # if ending_state == "success":
     #     yeahs += 1
-    # print("%8s" % ending_state, end=" ")
         sum_rew += maxi / 20
-    # print("->\t{}\t{}".format(maxi, sum_rew))
 
     # return ending_states, max_rew, last_rew, sum_rew
     # with open("log.txt", "a+") as logfile:
     #     logfile.write("{} {} {} {}\n".format(ind, sum_rew, ending_state, generation[ind]))
         avg_sum_rew += sum_rew
         ending_states.append(ending_state)
+    print(ending_states, end=" ")
+    print("->\t{}".format(avg_sum_rew))
     return ending_states, avg_sum_rew/params["repeat"]
 
 
@@ -113,13 +112,15 @@ def run_generation(generation, params):
             print("Running for individual number: \t{}".format(ind), end=" ")
             individual = generation[ind]
 
-            end_state, max_rew, last_rew, sum_rew = run_individual(individual)
+            # end_state, max_rew, last_rew, sum_rew = run_individual((individual, params))
+            end_states, avg_sum_rew = run_individual((individual, params), env, ind)
 
-            if end_state == "success":
-                yeahs += 1
-            max_rewards.append(max_rew)
-            end_rewards.append(last_rew)
-            total_rewards.append(sum_rew)
+            for end_state in end_states:
+                if end_state == "success":
+                    yeahs += 1
+            # max_rewards.append(max_rew)
+            # end_rewards.append(last_rew)
+            total_rewards.append(avg_sum_rew)
 
     # for i in range(len(max_rewards)):
         # print("{}: {} {} {}".format(i, total_rewards[i], end_rewards[i], max_rewards[i]))
@@ -162,13 +163,27 @@ def get_new_generation(prev_generation, fitness, cross, mut, select):
             child1.append(action1)
             child2.append(action2)
 
-        if random.uniform(0.0, 1.0) <= cross:
-            pos = random.randint(0, num_actions * num_observations)
-            curr_ind = 0
+        # if random.uniform(0.0, 1.0) <= cross:
+        #     pos = random.randint(0, num_actions * num_observations)
+        #     curr_ind = 0
+        #     for ai in range(num_actions):
+        #         for oi in range(num_observations):
+        #             if curr_ind >= pos:
+        #                 child1[ai][oi], child2[ai][oi] = child2[ai][oi], child1[ai][oi]
+
+        if random.uniform(0,1) <= cross:
+            alpha = random.uniform(0,1)
+            new_child1 = []
+            new_child2 = []
             for ai in range(num_actions):
+                new_action1 = []
+                new_action2 = []
                 for oi in range(num_observations):
-                    if curr_ind >= pos:
-                        child1[ai][oi], child2[ai][oi] = child2[ai][oi], child1[ai][oi]
+                    new_action1.append(child1[ai][oi] + alpha *(child2[ai][oi] - child1[ai][oi]))
+                    new_action2.append(child2[ai][oi] + alpha *(child1[ai][oi] - child2[ai][oi]))
+                new_child1.append(new_action1)
+                new_child2.append(new_action2)
+            child1, child2 = new_child1, new_child2
 
         for ai in range(num_actions):
             for oi in range(num_observations):
@@ -206,7 +221,7 @@ if __name__ == "__main__":
     num_observations = env.observation_space.shape[0]
 
     for generation_size, num_generations, crossover_prob, mutation_prob, select_size, max_iter_simulation, num_repeat in [
-        (100, 500, 0.95, 0.1, 10, 1000, 3)
+        (100, 100, 0.95, 0.02, 10, 1000, 1)
     ]:
 
         # fill generation with random individuals
